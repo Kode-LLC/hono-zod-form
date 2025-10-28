@@ -1,124 +1,58 @@
+import { parse } from '@conform-to/dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'hono/jsx';
+import type { useForm as ReactUseForm } from '@conform-to/react';
 
-export type SubmissionIntent =
-  | { type: 'submit'; payload?: Record<string, unknown> }
-  | { type: 'validate'; payload?: Record<string, unknown> }
-  | { type: string; payload?: Record<string, unknown> };
-
-export interface SubmissionErrors {
-  formErrors?: string[];
-  fieldErrors?: Record<string, string | string[] | undefined>;
+type ReactUseFormReturn<TValue> = ReturnType<ReactUseForm<TValue>>;
+type ReactUseFormOptions<TValue> = Parameters<ReactUseForm<TValue>>[0];
+type ReactFormState<TValue> = ReactUseFormReturn<TValue>[0];
+type ReactFieldset<TValue> = ReactUseFormReturn<TValue>[1];
+type ReactFieldMetadata<TValue> = ReactFieldset<TValue> extends Record<string, infer TField>
+  ? TField
+  : never;
+type ReactSubmission<TValue> = ReactFormState<TValue>['submission'];
+type ReactSubmissionIntent<TValue> = ReactSubmission<TValue> extends {
+  intent: infer TIntent;
 }
-
-export interface SubmissionResult<TValue = unknown> {
-  intent: SubmissionIntent;
-  value?: TValue;
-  error?: SubmissionErrors | null;
+  ? TIntent
+  : never;
+type ReactSubmissionErrors<TValue> = ReactSubmission<TValue> extends {
+  error?: infer TError;
 }
+  ? Exclude<TError, undefined>
+  : never;
+type ReactSubmissionStatus<TValue> = ReactFormState<TValue>['status'];
+type ReactFormProps<TValue> = ReactFormState<TValue>['props'];
+type ReactFieldProps<TValue> = ReactFieldMetadata<TValue> extends { props: infer TProps }
+  ? TProps
+  : never;
+type ReactValidateFormContext<TValue> = Parameters<
+  NonNullable<NonNullable<ReactUseFormOptions<TValue>['onValidate']>>
+>[0];
+type ReactSubmitContext<TValue> = Parameters<
+  NonNullable<ReactUseFormOptions<TValue>['onSubmit']>
+>[1];
+type ReactShouldValidateMode = NonNullable<ReactUseFormOptions<unknown>['shouldValidate']>;
 
-export type SubmissionStatus =
-  | 'idle'
-  | 'validating'
-  | 'submitting'
-  | 'success'
-  | 'error';
-
-export type ShouldValidateMode = 'onSubmit' | 'onBlur' | 'onChange' | 'onInput';
-
-export interface FormProps {
-  id: string;
-  noValidate: boolean;
-  ref: (element: HTMLFormElement | null) => void;
-  onSubmit: (event: SubmitEvent) => void | Promise<void>;
-}
-
-export interface FieldProps {
-  id: string;
-  name: string;
-  value?: unknown;
-  defaultValue?: unknown;
-  required?: boolean;
-  'aria-invalid'?: boolean;
-  'aria-describedby'?: string;
-  'data-conform-invalid'?: '';
-  'data-conform-dirty'?: '';
-  'data-conform-touched'?: '';
-  onInput?: (event: Event) => void;
-  onChange?: (event: Event) => void;
-  onBlur?: (event: FocusEvent) => void;
-}
-
-export interface FieldMetadata {
-  id: string;
-  name: string;
-  type: string;
-  value?: unknown;
-  defaultValue?: unknown;
-  initialValue?: unknown;
-  dirty: boolean;
-  touched: boolean;
-  valid: boolean;
-  error?: string;
-  errors: string[];
-  required?: boolean;
-  props: FieldProps;
-}
-
-export type Fieldset = Record<string, FieldMetadata>;
-
-export interface ValidateFormContext<TValue = unknown> {
-  form: HTMLFormElement;
-  formData: FormData;
-  submission: SubmissionResult<TValue>;
-  intent: SubmissionIntent;
-}
-
-export interface SubmitContext<TValue = unknown> {
-  form: HTMLFormElement;
-  formData: FormData;
-  submission: SubmissionResult<TValue>;
-}
-
-export interface FieldOptions {
+export type SubmissionIntent<TValue = Record<string, unknown>> = ReactSubmissionIntent<TValue>;
+export type SubmissionErrors<TValue = Record<string, unknown>> = ReactSubmissionErrors<TValue>;
+export type SubmissionResult<TValue = Record<string, unknown>> = ReactSubmission<TValue>;
+export type SubmissionStatus<TValue = Record<string, unknown>> = ReactSubmissionStatus<TValue>;
+export type ShouldValidateMode = ReactShouldValidateMode;
+export type FormProps<TValue = Record<string, unknown>> = ReactFormProps<TValue>;
+export type FieldProps<TValue = Record<string, unknown>> = ReactFieldProps<TValue>;
+export type FieldMetadata<TValue = Record<string, unknown>> = ReactFieldMetadata<TValue>;
+export type Fieldset<TValue = Record<string, unknown>> = ReactFieldset<TValue>;
+export type ValidateFormContext<TValue = Record<string, unknown>> = ReactValidateFormContext<TValue>;
+export type SubmitContext<TValue = Record<string, unknown>> = ReactSubmitContext<TValue>;
+export type FieldOptions = Partial<FieldProps> & {
   id?: string;
   defaultValue?: unknown;
   value?: unknown;
-  required?: boolean;
-  ariaDescribedBy?: string;
   type?: string;
-  onInput?: (event: Event) => void;
-  onChange?: (event: Event) => void;
-  onBlur?: (event: FocusEvent) => void;
-}
-
-export interface UseFormOptions<TValue = Record<string, unknown>> {
-  id?: string;
-  shouldValidate?: ShouldValidateMode;
-  shouldRevalidate?: ShouldValidateMode;
-  defaultValue?: Partial<TValue> | null;
-  lastSubmission?: SubmissionResult<TValue> | null;
-  onValidate?: (
-    context: ValidateFormContext<TValue>,
-  ) => SubmissionResult<TValue> | void | Promise<SubmissionResult<TValue> | void>;
-  onSubmit?: (event: SubmitEvent, context: SubmitContext<TValue>) => void | Promise<void>;
-}
-
-export interface FormState<TValue = Record<string, unknown>> {
-  id: string;
-  submission: SubmissionResult<TValue> | null;
-  lastSubmission: SubmissionResult<TValue> | null;
-  status: SubmissionStatus;
-  submitting: boolean;
-  valid: boolean;
-  dirty: boolean;
-  touched: boolean;
-  error: string | null;
-  errors: string[];
-  fields: Fieldset;
-  props: FormProps;
-  getFieldset: () => Fieldset;
-  reset: () => void;
-}
+  ariaDescribedBy?: string;
+};
+export type UseFormOptions<TValue = Record<string, unknown>> = ReactUseFormOptions<TValue>;
+export type FormState<TValue = Record<string, unknown>> = ReactFormState<TValue>;
 
 const emptyFieldErrors: Record<string, string | string[] | undefined> = Object.freeze({});
 const emptyFormErrors: string[] = Object.freeze([]);
@@ -217,9 +151,10 @@ function getEventValue(target: EventTarget | null): unknown {
 function normalizeSubmissionResult<TValue>(
   intent: SubmissionIntent,
   result: SubmissionResult<TValue> | void,
+  fallback: SubmissionResult<TValue> | null,
 ): SubmissionResult<TValue> | null {
   if (!result) {
-    return null;
+    return fallback;
   }
 
   if (!result.intent) {
@@ -423,29 +358,61 @@ export function useForm<TValue = Record<string, unknown>>(
 
       setStatus('validating');
 
+      let parsedSubmission: SubmissionResult<TValue> | null = null;
+
+      try {
+        parsedSubmission = parse(formData) as SubmissionResult<TValue>;
+      } catch {
+        parsedSubmission = null;
+      }
+
+      const stateSubmission: SubmissionResult<TValue> =
+        submission ??
+        ({
+          intent,
+          value: valuesRef.current as unknown as TValue,
+          error: {
+            formErrors: formErrorsRef.current,
+            fieldErrors: fieldErrorsRef.current,
+          },
+        } as SubmissionResult<TValue>);
+
+      const fallbackSubmission: SubmissionResult<TValue> =
+        parsedSubmission ?? stateSubmission;
+      const resolvedIntent = (fallbackSubmission.intent ?? intent) as SubmissionIntent;
+
       const context: ValidateFormContext<TValue> = {
         form,
         formData,
         submission: {
-          intent,
-          value: submission?.value ?? (valuesRef.current as unknown as TValue),
-          error:
-            submission?.error ?? {
-              formErrors: formErrorsRef.current,
-              fieldErrors: fieldErrorsRef.current,
-            },
+          ...fallbackSubmission,
+          intent: resolvedIntent,
         },
-        intent,
+        intent: resolvedIntent,
       };
 
       const result = await options.onValidate(context);
-      const normalized = normalizeSubmissionResult(intent, result);
+      const normalized = normalizeSubmissionResult(
+        resolvedIntent,
+        result,
+        parsedSubmission ?? fallbackSubmission,
+      );
 
-      applySubmission(normalized, normalized?.error && hasSubmissionError(normalized.error) ? 'error' : 'success');
+      applySubmission(
+        normalized,
+        normalized?.error && hasSubmissionError(normalized.error) ? 'error' : 'success',
+      );
 
       return normalized;
     },
-    [applySubmission, options.onValidate, submission],
+    [
+      applySubmission,
+      fieldErrorsRef,
+      formErrorsRef,
+      options.onValidate,
+      submission,
+      valuesRef,
+    ],
   );
 
   const validate = useCallback(async () => {
@@ -530,12 +497,24 @@ export function useForm<TValue = Record<string, unknown>>(
         }
       }
 
-      const finalSubmission: SubmissionResult<TValue> =
-        nextSubmission ?? {
-          intent,
-          value: submission?.value ?? (valuesRef.current as unknown as TValue),
-          error: submission?.error ?? null,
-        };
+      let parsedSubmission: SubmissionResult<TValue> | null = null;
+
+      try {
+        parsedSubmission = parse(formData) as SubmissionResult<TValue>;
+      } catch {
+        parsedSubmission = null;
+      }
+
+      const fallbackSubmission: SubmissionResult<TValue> =
+        parsedSubmission ??
+        (submission ??
+          ({
+            intent,
+            value: valuesRef.current as unknown as TValue,
+            error: submission?.error ?? null,
+          } as SubmissionResult<TValue>));
+
+      const finalSubmission: SubmissionResult<TValue> = nextSubmission ?? fallbackSubmission;
 
       setStatus('submitting');
       setSubmission(finalSubmission);
@@ -550,7 +529,7 @@ export function useForm<TValue = Record<string, unknown>>(
 
       setStatus('success');
     },
-    [options.onSubmit, options.onValidate, runValidation, submission],
+    [options.onSubmit, options.onValidate, runValidation, submission, valuesRef],
   );
 
   const handleRef = useCallback((element: HTMLFormElement | null) => {
@@ -709,5 +688,5 @@ export function useForm<TValue = Record<string, unknown>>(
 
 export type UseFormReturn<TValue = Record<string, unknown>> = [
   FormState<TValue>,
-  Fieldset,
+  Fieldset<TValue>,
 ];
